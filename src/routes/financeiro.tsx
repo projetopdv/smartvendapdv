@@ -263,8 +263,10 @@ function StatCard({ title, stats, accent }: { title: string; stats: { revenue: n
 
 function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receivable"; rows: any[]; userId: string; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ description: "", amount: "", due_date: "", party: "", category: "" });
+  const [form, setForm] = useState({ description: "", order_description: "", amount: "", due_date: "", party: "", category: "" });
   const [saving, setSaving] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const partyLabel = kind === "payable" ? "Fornecedor" : "Cliente";
   const partyField = kind === "payable" ? "supplier" : "customer";
   const table = kind === "payable" ? "accounts_payable" : "accounts_receivable";
@@ -275,12 +277,21 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
       return;
     }
     setSaving(true);
+    let receipt_url: string | null = null;
+    if (receiptFile) {
+      const path = `${userId}/${Date.now()}-${receiptFile.name}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(path, receiptFile);
+      if (upErr) { setSaving(false); toast.error("Falha no upload: " + upErr.message); return; }
+      receipt_url = supabase.storage.from("receipts").getPublicUrl(path).data.publicUrl;
+    }
     const payload: any = {
       description: form.description,
+      order_description: form.order_description || null,
       amount: Number(form.amount),
       due_date: form.due_date,
       [partyField]: form.party || null,
       category: form.category || null,
+      receipt_url,
       created_by: userId,
       owner_id: userId,
     };
@@ -289,8 +300,21 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
     if (error) { toast.error(error.message); return; }
     toast.success("Conta criada");
     setOpen(false);
-    setForm({ description: "", amount: "", due_date: "", party: "", category: "" });
+    setForm({ description: "", order_description: "", amount: "", due_date: "", party: "", category: "" });
+    setReceiptFile(null);
     onChanged();
+  }
+
+  async function uploadReceipt(row: any, file: File) {
+    setUploadingFor(row.id);
+    const path = `${userId}/${row.id}-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("receipts").upload(path, file);
+    if (upErr) { setUploadingFor(null); toast.error(upErr.message); return; }
+    const url = supabase.storage.from("receipts").getPublicUrl(path).data.publicUrl;
+    const { error } = await supabase.from(table).update({ receipt_url: url }).eq("id", row.id);
+    setUploadingFor(null);
+    if (error) toast.error(error.message);
+    else { toast.success("Comprovante enviado"); onChanged(); }
   }
 
   async function togglePaid(row: any) {
@@ -323,23 +347,26 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
         <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> Nova conta</Button>
       </div>
 
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Descrição</TableHead>
+              <TableHead>Pedido</TableHead>
               <TableHead>{partyLabel}</TableHead>
               <TableHead>Vencimento</TableHead>
               <TableHead className="text-right">Valor</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Comprovante</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Nenhuma conta.</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">Nenhuma conta.</TableCell></TableRow>}
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{r.description}</TableCell>
+                <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate" title={r.order_description ?? ""}>{r.order_description ?? "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{r[partyField] ?? "—"}</TableCell>
                 <TableCell className="text-sm">{new Date(r.due_date).toLocaleDateString("pt-BR")}</TableCell>
                 <TableCell className="text-right font-semibold">{BRL.format(Number(r.amount))}</TableCell>
@@ -347,6 +374,16 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
                   <button onClick={() => togglePaid(r)} className={`text-xs px-2 py-0.5 rounded-full ${r.status === "paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
                     {r.status === "paid" ? (kind === "payable" ? "Paga" : "Recebida") : "Pendente"}
                   </button>
+                </TableCell>
+                <TableCell>
+                  {r.receipt_url ? (
+                    <a href={r.receipt_url} target="_blank" rel="noopener" className="text-xs text-primary underline">Ver</a>
+                  ) : (
+                    <label className="text-xs text-muted-foreground cursor-pointer hover:text-primary">
+                      {uploadingFor === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Anexar"}
+                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && uploadReceipt(r, e.target.files[0])} />
+                    </label>
+                  )}
                 </TableCell>
                 <TableCell className="text-right"><Button size="sm" variant="ghost" onClick={() => remove(r.id)}>Excluir</Button></TableCell>
               </TableRow>
@@ -360,6 +397,7 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
           <DialogHeader><DialogTitle>Nova conta {kind === "payable" ? "a pagar" : "a receber"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1"><Label>Descrição</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Descrição do pedido / itens</Label><Input value={form.order_description} onChange={(e) => setForm({ ...form, order_description: e.target.value })} placeholder="Ex: 10 refrigerantes, 5kg arroz..." /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Valor</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Vencimento</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
@@ -368,6 +406,7 @@ function BillsTab({ kind, rows, userId, onChanged }: { kind: "payable" | "receiv
               <div className="space-y-1"><Label>{partyLabel}</Label><Input value={form.party} onChange={(e) => setForm({ ...form, party: e.target.value })} /></div>
               <div className="space-y-1"><Label>Categoria</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Aluguel, Energia..." /></div>
             </div>
+            <div className="space-y-1"><Label>Comprovante (opcional)</Label><Input type="file" accept="image/*,application/pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

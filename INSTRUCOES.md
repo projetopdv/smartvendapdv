@@ -147,3 +147,32 @@ Você pode editar planos em **SQL Editor** na tabela `public.plans`.
 ---
 
 **SmartVenda PDV © 2026** — Sistema próprio, 100% seu.
+
+## Atualizações recentes (v3)
+
+- **CNPJ da loja** em Configurações → Perfil → aparece no Cupom Não Fiscal.
+- **CPF na nota** (Sim/Não) na tela de Pagamento do PDV. Quando "Sim", aparece um campo para digitar o CPF do consumidor — e ele é impresso no cupom.
+- **Notificações por email (Resend)** — disparadas diariamente às 09:00 (UTC-3) pelo cron `smartvenda-daily-alerts`:
+  - Para o admin (`dedett55@gmail.com`): assinaturas expiradas / a expirar em até 3 dias.
+  - Para cada dono de loja: produtos com estoque ≤ estoque mínimo.
+  - Para cada dono de loja: contas a pagar **vencidas ou a vencer nos próximos 5 dias** (`accounts_payable.status = 'pending'`).
+- Endpoint manual: `POST /api/public/hooks/notify-alerts` (também é chamado pelo pg_cron).
+
+## Deploy Cloudflare com Wrangler
+
+Este projeto usa **TanStack Start + Cloudflare Workers**. O `wrangler.jsonc` já está configurado.
+
+```bash
+bun install
+bun run build
+bunx wrangler deploy
+```
+
+Variáveis necessárias no Cloudflare (Settings → Variables):
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_PROJECT_ID`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (apenas para o endpoint `/api/public/hooks/notify-alerts`)
+- `RESEND_API_KEY`
+- `ADMIN_NOTIFICATION_EMAIL` = `dedett55@gmail.com`

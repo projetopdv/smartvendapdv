@@ -90,7 +90,9 @@ interface ProductLite {
   price: number;
   stock: number;
   unit: string;
+  category_id: string | null;
 }
+interface CategoryLite { id: string; name: string; color: string }
 interface CustomerLite { id: string; name: string }
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -461,6 +463,8 @@ function TableOrderDialog({ table, onClose }: { table: MesaTable; onClose: () =>
   const [order, setOrder] = useState<OpenOrder | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [products, setProducts] = useState<ProductLite[]>([]);
+  const [categories, setCategories] = useState<CategoryLite[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [payOpen, setPayOpen] = useState(false);
@@ -474,13 +478,15 @@ function TableOrderDialog({ table, onClose }: { table: MesaTable; onClose: () =>
 
   async function init() {
     setLoading(true);
-    const [orderRes, prodRes] = await Promise.all([
+    const [orderRes, prodRes, catRes] = await Promise.all([
       supabase.rpc("open_table_order", { _table_id: table.id }),
-      supabase.from("products").select("id,name,price,stock,unit").eq("active", true).order("name"),
+      supabase.from("products").select("id,name,price,stock,unit,category_id").eq("active", true).order("name"),
+      supabase.from("categories").select("id,name,color").order("name"),
     ]);
     const oid = orderRes.data as string;
     setOrderId(oid);
     setProducts((prodRes.data ?? []) as ProductLite[]);
+    setCategories((catRes.data ?? []) as CategoryLite[]);
     if (oid) {
       const { data: oData } = await supabase.from("table_orders").select("id,table_id,customer_name,opened_at").eq("id", oid).maybeSingle();
       if (oData) setOrder(oData as OpenOrder);
@@ -537,9 +543,11 @@ function TableOrderDialog({ table, onClose }: { table: MesaTable; onClose: () =>
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return products.slice(0, 20);
-    return products.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 40);
-  }, [search, products]);
+    let list = products;
+    if (activeCategory !== "all") list = list.filter((p) => p.category_id === activeCategory);
+    if (q) list = list.filter((p) => p.name.toLowerCase().includes(q));
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).slice(0, 80);
+  }, [search, products, activeCategory]);
 
   const total = items.reduce((s, i) => s + Number(i.subtotal), 0);
 
@@ -581,6 +589,25 @@ function TableOrderDialog({ table, onClose }: { table: MesaTable; onClose: () =>
                     className="pl-10"
                   />
                 </div>
+                {categories.length > 0 && (
+                  <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1">
+                    <button
+                      onClick={() => setActiveCategory("all")}
+                      className={`shrink-0 px-2.5 py-1 text-[11px] font-medium rounded-full border ${
+                        activeCategory === "all" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
+                      }`}
+                    >Todas</button>
+                    {categories.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setActiveCategory(c.id)}
+                        className={`shrink-0 px-2.5 py-1 text-[11px] font-medium rounded-full border ${
+                          activeCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
+                        }`}
+                      >{c.name}</button>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2 overflow-auto max-h-[50vh] pr-1">
                   {filtered.map((p) => (
                     <button
@@ -675,9 +702,34 @@ function PayTableDialog({
   const [discount, setDiscount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [splitCount, setSplitCount] = useState(1);
+  const [profile, setProfile] = useState<any>(null);
+  const [pixQr, setPixQr] = useState<string | null>(null);
+  const [pixPayload, setPixPayload] = useState<string | null>(null);
 
   const finalTotal = Math.max(total - discount, 0);
   const perPerson = splitCount > 1 ? finalTotal / splitCount : finalTotal;
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => setProfile(data));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (payment === "pix" && profile?.pix_key && profile?.pix_merchant_name && profile?.pix_merchant_city && finalTotal > 0) {
+      import("@/lib/pix").then(({ generatePixPayload }) => {
+        const payload = generatePixPayload({
+          pixKey: profile.pix_key,
+          merchantName: profile.pix_merchant_name,
+          merchantCity: profile.pix_merchant_city,
+          amount: finalTotal,
+        });
+        setPixPayload(payload);
+        import("qrcode").then((QR) => QR.default.toDataURL(payload, { width: 240, margin: 1 }).then(setPixQr));
+      });
+    } else { setPixQr(null); setPixPayload(null); }
+  }, [payment, finalTotal, profile]);
 
   async function pay() {
     setSubmitting(true);
@@ -760,6 +812,21 @@ function PayTableDialog({
               {received && Number(received) >= finalTotal && (
                 <p className="text-sm text-success mt-1">Troco: {BRL.format(Number(received) - finalTotal)}</p>
               )}
+            </div>
+          )}
+
+          {payment === "pix" && (
+            <div className="text-center space-y-2 rounded-lg border border-border p-3">
+              {!profile?.pix_key ? (
+                <p className="text-sm text-warning">Cadastre uma chave PIX em Configurações para gerar QR Code.</p>
+              ) : pixQr ? (
+                <>
+                  <img src={pixQr} alt="QR Code PIX" className="mx-auto rounded-lg border" />
+                  <Button type="button" variant="outline" size="sm" onClick={() => { if (pixPayload) { navigator.clipboard.writeText(pixPayload); toast.success("Código PIX copiado!"); } }}>
+                    Copiar PIX Copia e Cola
+                  </Button>
+                </>
+              ) : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
             </div>
           )}
         </div>

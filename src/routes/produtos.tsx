@@ -560,7 +560,12 @@ function ProductDialog({
           </div>
           <div className="space-y-2">
             <Label>Estoque atual</Label>
-            <Input type="number" min={0} step={0.001} value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+            <div className="flex gap-2">
+              <Input type="number" min={0} step={0.001} value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+              {form.id && (
+                <AddStockButton productId={form.id} currentStock={Number(form.stock)} onAdded={(newStock) => setForm({ ...form, stock: newStock })} />
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Estoque mínimo</Label>
@@ -581,6 +586,62 @@ function ProductDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AddStockButton({ productId, currentStock, onAdded }: { productId: string; currentStock: number; onAdded: (newStock: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [qty, setQty] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    const q = Number(qty);
+    if (!q || q <= 0) return toast.error("Informe quantidade positiva");
+    setSaving(true);
+    const { data, error } = await supabase.rpc("increment_product_stock", {
+      _product_id: productId,
+      _quantity: q,
+      _reason: reason || "Entrada manual",
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success(`+${q} adicionados ao estoque`);
+    onAdded(Number(data));
+    setQty(""); setReason(""); setOpen(false);
+  }
+
+  return (
+    <>
+      <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} title="Adicionar ao estoque">
+        <Plus className="h-4 w-4" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adicionar ao estoque</DialogTitle>
+            <DialogDescription>Estoque atual: <strong>{currentStock}</strong></DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Quantidade a acrescentar</Label>
+              <Input type="number" min={0.001} step={0.001} value={qty} onChange={(e) => setQty(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Motivo (opcional)</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Compra, ajuste..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={add} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Adicionar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -51,8 +51,10 @@ interface Product {
   stock: number;
   unit: string;
   image_url: string | null;
+  category_id: string | null;
   updated_at?: string;
 }
+interface CategoryLite { id: string; name: string; color: string }
 
 interface CartItem { product: Product; quantity: number; }
 type PaymentMethod = "cash" | "credit" | "debit" | "pix" | "other";
@@ -103,6 +105,8 @@ function PdvPage() {
 // ============== VENDA ==============
 function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CategoryLite[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -113,6 +117,8 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [pixQr, setPixQr] = useState<string | null>(null);
   const [pixPayload, setPixPayload] = useState<string | null>(null);
+  const [includeCpf, setIncludeCpf] = useState(false);
+  const [customerCpf, setCustomerCpf] = useState("");
   const [lastSale, setLastSale] = useState<{ number: number; total: number; change: number; receipt: ReceiptData } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
@@ -121,23 +127,31 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
 
   async function loadProducts() {
     setLoadingProducts(true);
-    const { data, error } = await supabase
-      .from("products")
-      .select("id,name,barcode,sku,price,cost,stock,unit,image_url,updated_at")
-      .eq("active", true)
-      .order("name");
+    const [{ data, error }, { data: cats }] = await Promise.all([
+      supabase.from("products")
+        .select("id,name,barcode,sku,price,cost,stock,unit,image_url,category_id,updated_at")
+        .eq("active", true).order("name"),
+      supabase.from("categories").select("id,name,color").order("name"),
+    ]);
     if (error) toast.error("Erro ao carregar produtos");
     setProducts((data ?? []) as Product[]);
+    setCategories((cats ?? []) as CategoryLite[]);
     setLoadingProducts(false);
   }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return products.slice(0, 24);
-    return products.filter((p) =>
-      p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q),
-    ).slice(0, 60);
-  }, [search, products]);
+    let list = products;
+    if (activeCategory !== "all") {
+      list = list.filter((p) => p.category_id === activeCategory);
+    }
+    if (q) {
+      list = list.filter((p) =>
+        p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q),
+      );
+    }
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).slice(0, 100);
+  }, [search, products, activeCategory]);
 
   function addToCart(p: Product) {
     if (p.stock <= 0) { toast.error(`${p.name} sem estoque`); return; }
@@ -205,6 +219,8 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
 
       const receipt: ReceiptData = {
         storeName: profile?.store_name || "SmartVenda PDV",
+        storeCnpj: profile?.cnpj || null,
+        customerCpf: includeCpf && customerCpf.trim() ? customerCpf.trim() : null,
         saleNumber: Number(sale?.sale_number ?? 0),
         items: cart.map((i) => ({
           name: i.product.name, quantity: i.quantity,
@@ -229,7 +245,7 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
 
       if (profile?.auto_print) printReceipt(receipt);
 
-      clearCart(); setReceived(""); setPayOpen(false);
+      clearCart(); setReceived(""); setPayOpen(false); setIncludeCpf(false); setCustomerCpf("");
       void loadProducts();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao finalizar venda");
@@ -245,6 +261,30 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
             placeholder="Código de barras, nome ou SKU..." className="pl-10 h-12 text-base" autoFocus />
           <ScanLine className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         </div>
+        {categories.length > 0 && (
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <button
+              onClick={() => setActiveCategory("all")}
+              className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                activeCategory === "all" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
+              }`}
+            >
+              Todas
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setActiveCategory(c.id)}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                  activeCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
+                }`}
+                style={activeCategory === c.id ? undefined : { borderColor: `${c.color}55`, color: c.color }}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-auto p-4">
         {loadingProducts ? <div className="flex items-center justify-center h-40 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
@@ -371,6 +411,19 @@ function SaleView({ profile, cashier }: { profile: any; cashier: string }) {
                 ) : <Loader2 className="h-5 w-5 animate-spin mx-auto" />}
               </div>
             )}
+
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">CPF na nota?</Label>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant={includeCpf ? "default" : "outline"} onClick={() => setIncludeCpf(true)}>Sim</Button>
+                  <Button type="button" size="sm" variant={!includeCpf ? "default" : "outline"} onClick={() => { setIncludeCpf(false); setCustomerCpf(""); }}>Não</Button>
+                </div>
+              </div>
+              {includeCpf && (
+                <Input value={customerCpf} onChange={(e) => setCustomerCpf(e.target.value)} placeholder="000.000.000-00" maxLength={20} />
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayOpen(false)} disabled={submitting}>Cancelar</Button>

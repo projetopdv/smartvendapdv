@@ -22,6 +22,7 @@ import { Route as ControleRouteImport } from './routes/controle'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicHooksNotifyAlertsRouteImport } from './routes/api/public/hooks/notify-alerts'
 
 const VendasRoute = VendasRouteImport.update({
   id: '/vendas',
@@ -88,6 +89,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksNotifyAlertsRoute =
+  ApiPublicHooksNotifyAlertsRouteImport.update({
+    id: '/api/public/hooks/notify-alerts',
+    path: '/api/public/hooks/notify-alerts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/produtos': typeof ProdutosRoute
   '/usuarios': typeof UsuariosRoute
   '/vendas': typeof VendasRoute
+  '/api/public/hooks/notify-alerts': typeof ApiPublicHooksNotifyAlertsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/produtos': typeof ProdutosRoute
   '/usuarios': typeof UsuariosRoute
   '/vendas': typeof VendasRoute
+  '/api/public/hooks/notify-alerts': typeof ApiPublicHooksNotifyAlertsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +143,7 @@ export interface FileRoutesById {
   '/produtos': typeof ProdutosRoute
   '/usuarios': typeof UsuariosRoute
   '/vendas': typeof VendasRoute
+  '/api/public/hooks/notify-alerts': typeof ApiPublicHooksNotifyAlertsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/produtos'
     | '/usuarios'
     | '/vendas'
+    | '/api/public/hooks/notify-alerts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/produtos'
     | '/usuarios'
     | '/vendas'
+    | '/api/public/hooks/notify-alerts'
   id:
     | '__root__'
     | '/'
@@ -181,6 +193,7 @@ export interface FileRouteTypes {
     | '/produtos'
     | '/usuarios'
     | '/vendas'
+    | '/api/public/hooks/notify-alerts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +210,7 @@ export interface RootRouteChildren {
   ProdutosRoute: typeof ProdutosRoute
   UsuariosRoute: typeof UsuariosRoute
   VendasRoute: typeof VendasRoute
+  ApiPublicHooksNotifyAlertsRoute: typeof ApiPublicHooksNotifyAlertsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +306,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/notify-alerts': {
+      id: '/api/public/hooks/notify-alerts'
+      path: '/api/public/hooks/notify-alerts'
+      fullPath: '/api/public/hooks/notify-alerts'
+      preLoaderRoute: typeof ApiPublicHooksNotifyAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,16 +330,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProdutosRoute: ProdutosRoute,
   UsuariosRoute: UsuariosRoute,
   VendasRoute: VendasRoute,
+  ApiPublicHooksNotifyAlertsRoute: ApiPublicHooksNotifyAlertsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

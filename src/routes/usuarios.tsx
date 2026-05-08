@@ -335,10 +335,12 @@ function AssignPlanDialog({
   onSaved: () => void;
 }) {
   const [planId, setPlanId] = useState<string>("");
+  const [customExpiry, setCustomExpiry] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setPlanId("");
+    setCustomExpiry("");
   }, [user?.id]);
 
   if (!user) return null;
@@ -359,8 +361,9 @@ function AssignPlanDialog({
         .eq("user_id", user.id)
         .eq("status", "active");
 
-      const expiresAt =
-        plan.billing_cycle === "lifetime"
+      const expiresAt = customExpiry
+        ? new Date(customExpiry + "T23:59:59").toISOString()
+        : plan.billing_cycle === "lifetime"
           ? null
           : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -447,6 +450,12 @@ function AssignPlanDialog({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Data de expiração customizada (opcional)</Label>
+          <Input type="date" value={customExpiry} onChange={(e) => setCustomExpiry(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">Se vazio: vitalício ou +30 dias conforme o plano. Use para período de teste personalizado.</p>
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">

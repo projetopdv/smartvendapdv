@@ -9,6 +9,8 @@ export interface ReceiptItem {
 
 export interface ReceiptData {
   storeName: string;
+  storeCnpj?: string | null;
+  customerCpf?: string | null;
   saleNumber: number | string;
   items: ReceiptItem[];
   subtotal: number;
@@ -54,9 +56,10 @@ export function buildReceiptHtml(data: ReceiptData): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Cupom #${data.saleNumber}</title>
 <style>
-@page { size: ${w}mm auto; margin: 4mm; }
-* { box-sizing: border-box; }
-body { font-family: 'Courier New', monospace; font-size: 12px; width: ${w - 8}mm; margin: 0; color: #000; }
+@page { size: ${w}mm 297mm portrait; margin: 3mm; }
+@media print { html, body { width: ${w}mm; } }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: 'Courier New', monospace; font-size: 12px; width: ${w - 6}mm; margin: 0 auto; color: #000; transform-origin: top left; }
 h1 { font-size: 14px; text-align: center; margin: 4px 0; }
 .center { text-align: center; }
 .r { text-align: right; }
@@ -71,9 +74,11 @@ hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
 @media print { button { display: none; } }
 </style></head><body>
 <h1>${escapeHtml(data.storeName)}</h1>
+${data.storeCnpj ? `<div class="center small">CNPJ: ${escapeHtml(data.storeCnpj)}</div>` : ""}
 <div class="center small">CUPOM NÃO FISCAL</div>
 <div class="center small">${date}</div>
 <div class="center small">Venda Nº ${data.saleNumber}</div>
+${data.customerCpf ? `<div class="center small">CPF do Consumidor: ${escapeHtml(data.customerCpf)}</div>` : ""}
 <hr/>
 ${items}
 <hr/>
@@ -122,12 +127,20 @@ export function downloadReceiptPdf(data: ReceiptData) {
   y += 5;
   doc.setFont("courier", "normal");
   doc.setFontSize(8);
+  if (data.storeCnpj) {
+    doc.text(`CNPJ: ${data.storeCnpj}`, widthMm / 2, y, { align: "center" });
+    y += 3.5;
+  }
   doc.text("CUPOM NÃO FISCAL", widthMm / 2, y, { align: "center" });
   y += 3.5;
   doc.text(date, widthMm / 2, y, { align: "center" });
   y += 3.5;
   doc.text(`Venda Nº ${data.saleNumber}`, widthMm / 2, y, { align: "center" });
   y += 4;
+  if (data.customerCpf) {
+    doc.text(`CPF do Consumidor: ${data.customerCpf}`, widthMm / 2, y, { align: "center" });
+    y += 4;
+  }
   doc.line(x, y, x + w, y);
   y += 3;
 

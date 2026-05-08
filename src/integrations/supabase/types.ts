@@ -24,8 +24,10 @@ export type Database = {
           due_date: string
           id: string
           notes: string | null
+          order_description: string | null
           owner_id: string
           paid_at: string | null
+          receipt_url: string | null
           status: Database["public"]["Enums"]["bill_status"]
           supplier: string | null
           updated_at: string
@@ -39,8 +41,10 @@ export type Database = {
           due_date: string
           id?: string
           notes?: string | null
+          order_description?: string | null
           owner_id: string
           paid_at?: string | null
+          receipt_url?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
           supplier?: string | null
           updated_at?: string
@@ -54,8 +58,10 @@ export type Database = {
           due_date?: string
           id?: string
           notes?: string | null
+          order_description?: string | null
           owner_id?: string
           paid_at?: string | null
+          receipt_url?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
           supplier?: string | null
           updated_at?: string
@@ -74,6 +80,7 @@ export type Database = {
           id: string
           notes: string | null
           owner_id: string
+          receipt_url: string | null
           received_at: string | null
           status: Database["public"]["Enums"]["bill_status"]
           updated_at: string
@@ -89,6 +96,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id: string
+          receipt_url?: string | null
           received_at?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
           updated_at?: string
@@ -104,6 +112,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id?: string
+          receipt_url?: string | null
           received_at?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
           updated_at?: string
@@ -363,6 +372,7 @@ export type Database = {
       profiles: {
         Row: {
           auto_print: boolean | null
+          cnpj: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -382,6 +392,7 @@ export type Database = {
         }
         Insert: {
           auto_print?: boolean | null
+          cnpj?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -401,6 +412,7 @@ export type Database = {
         }
         Update: {
           auto_print?: boolean | null
+          cnpj?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -568,6 +580,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          owner_id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          owner_id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       table_order_items: {
         Row: {
@@ -814,6 +865,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_product_stock: {
+        Args: { _product_id: string; _quantity: number; _reason?: string }
+        Returns: number
+      }
       open_table_order: {
         Args: {
           _customer_id?: string
@@ -835,7 +890,7 @@ export type Database = {
       cash_register_status: "open" | "closed"
       payment_method: "cash" | "credit" | "debit" | "pix" | "other"
       sale_status: "completed" | "cancelled" | "pending"
-      stock_movement_type: "in" | "out" | "adjustment" | "sale"
+      stock_movement_type: "in" | "out" | "adjustment" | "sale" | "entry"
       table_order_status: "open" | "closed" | "cancelled"
       table_status: "free" | "occupied" | "reserved"
     }
@@ -971,7 +1026,7 @@ export const Constants = {
       cash_register_status: ["open", "closed"],
       payment_method: ["cash", "credit", "debit", "pix", "other"],
       sale_status: ["completed", "cancelled", "pending"],
-      stock_movement_type: ["in", "out", "adjustment", "sale"],
+      stock_movement_type: ["in", "out", "adjustment", "sale", "entry"],
       table_order_status: ["open", "closed", "cancelled"],
       table_status: ["free", "occupied", "reserved"],
     },

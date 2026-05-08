@@ -38,6 +38,7 @@ interface ProfileData {
   full_name: string | null;
   phone: string | null;
   store_name: string | null;
+  cnpj: string | null;
   pix_key: string | null;
   pix_key_type: string | null;
   pix_merchant_name: string | null;
@@ -53,7 +54,7 @@ function ConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
-    full_name: "", phone: "", store_name: "",
+    full_name: "", phone: "", store_name: "", cnpj: "",
     pix_key: "", pix_key_type: "email", pix_merchant_name: "", pix_merchant_city: "",
     printer_name: "", printer_width_mm: 80, printer_copies: 1, auto_print: false,
   });
@@ -83,6 +84,7 @@ function ConfigPage() {
       full_name: p.full_name ?? "",
       phone: (p as any).phone ?? "",
       store_name: (p as any).store_name ?? "",
+      cnpj: (p as any).cnpj ?? "",
       pix_key: (p as any).pix_key ?? "",
       pix_key_type: (p as any).pix_key_type ?? "email",
       pix_merchant_name: (p as any).pix_merchant_name ?? "",
@@ -111,6 +113,7 @@ function ConfigPage() {
         full_name: profile.full_name,
         phone: profile.phone,
         store_name: profile.store_name,
+        cnpj: profile.cnpj,
         pix_key: profile.pix_key,
         pix_key_type: profile.pix_key_type,
         pix_merchant_name: profile.pix_merchant_name,
@@ -202,9 +205,13 @@ function ConfigPage() {
                 <Label>Telefone</Label>
                 <Input value={profile.phone ?? ""} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} placeholder="(11) 99999-9999" />
               </div>
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2">
                 <Label>Nome da loja</Label>
                 <Input value={profile.store_name ?? ""} onChange={(e) => setProfile({ ...profile, store_name: e.target.value })} placeholder="Aparece no cupom" />
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ da loja</Label>
+                <Input value={profile.cnpj ?? ""} onChange={(e) => setProfile({ ...profile, cnpj: e.target.value })} placeholder="00.000.000/0000-00" />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Email <span className="text-xs text-muted-foreground">(somente admin altera)</span></Label>
