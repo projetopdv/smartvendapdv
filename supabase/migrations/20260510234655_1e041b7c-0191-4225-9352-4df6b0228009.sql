@@ -1,0 +1,4 @@
+ALTER TABLE public.broadcasts
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'info',
+  ADD COLUMN IF NOT EXISTS link_url TEXT;
